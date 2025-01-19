@@ -6,7 +6,7 @@
       <div class="d-none d-xl-block col-xl-2 docs-toc">
 
         {{ .TableOfContents }}
-        {{ partial "functions/get_hook" (dict "hook" "toc-end" "context" .) }}
+        {{ partial "blox-core/functions/get_hook" (dict "hook" "toc-end" "context" .) }}
       </div>
       <main class="col-12 col-md-0 col-xl-10 py-md-3 pl-md-5 docs-content" role="main">
 {{ end }}
