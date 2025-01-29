@@ -1,4 +1,4 @@
-[![Netlify Status](https://api.netlify.com/api/v1/badges/05205594-2f90-40b7-9d06-535884d66d57/deploy-status)](https://app.netlify.com/sites/cloud-native-wiki/deploys)
+[![Netlify Status](https://api.netlify.com/api/v1/badges/ef424903-968f-4cf3-9076-9912066c7ed4/deploy-status)](https://app.netlify.com/sites/cloud-native-wiki/deploys)
 
 ### [Cloud-Native.Wiki](https://www.cloud-native.wiki/)
 
