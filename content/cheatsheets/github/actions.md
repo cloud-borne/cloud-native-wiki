@@ -34,7 +34,7 @@ Examples:
   - A user pushes a ```commit``` to a repository
   - Other [example events that trigger workflows](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows)
 
-  ![github-actions-events](/images/uploads/github-action-events.png)
+  {{< figure src="images/uploads/github-action-events.png" width="600" height="600">}}
 
 {{% callout note %}}
 To skip the CI workflow for a specific commit, you can include ```[skip ci]``` or ```[ci skip]``` in the commit message. GitHub recognizes this phrase and will not trigger the CI workflow for that commit.
@@ -236,8 +236,116 @@ A **reusable** step is an ```Action```
   - Set up the correct toolchain for a build environment
   - Establish authentication to a cloud provider
 
-That's all for now.  Consider "Intro to GitHub Actions" complete, but there's a long ways to go and lots more to learn. 
+### Context
+
+Every workflow execution has access to different ```Context``` information during runtime. Contexts are a way to access information about workflow runs, variables, runner environments, jobs, and steps. Each ```Context``` is an object that contains properties, which can be strings or other objects.
+
+You can access contexts using the expression syntax: ``` ${{ <context> }} ```. 
+We have already seen some usage like this where we output the branch name from the ```github``` context object
+
+```sh
+  echo "All the jobs completed in ${{ github.ref }} branch!" >> $GITHUB_STEP_SUMMARY
+```
+
+We can look at all the different ```context``` objects available in a workflow and we can do this by converting the objects to JSON and storing them in an environment variable on each step. Lastly, we'll output that environment variable with a simple echo statement:
+
+- Create a new workflow with the below code: ```.github/workflows/context.yaml``` . 
+
+  ```yaml
+  name: Context Information
+  on:
+    push:
+      branches-ignore: main
+  jobs:
+    show-context:
+      name: Show Context
+      timeout-minutes: 5
+      runs-on: ubuntu-latest-internal
+      steps:
+        - name: Dump Event Information
+          env:
+            CONTEXT_ITEM: ${{ toJson(github) }}
+          run: echo "GitHub context ${CONTEXT_ITEM}"
+        - name: Dump Job Information
+          env:
+            CONTEXT_ITEM: ${{ toJson(job) }}
+          run: echo "job context ${CONTEXT_ITEM}"
+        - name: Dump Runner Information
+          env:
+            CONTEXT_ITEM: ${{ toJson(runner) }}
+          run: echo "runner context ${CONTEXT_ITEM}"
+        - name: Dump Step Information
+          env:
+            CONTEXT_ITEM: ${{ toJson(steps) }}
+          run: echo "step context ${CONTEXT_ITEM}"
+  ```
+- ```Add``` & ```Commit``` your changes, then ```Push``` your branch.
+- Go to your repository and view the ```Actions``` tab to see the execution against your published branch.
+- The result will be an execution of the workflow whenever any changes are pushed **EXCEPT** on the ```main``` branch. ```Context``` information is viewable in the output so that you can understand how to utilize those values in your workflows
+  ![github-actions-context](/images/uploads/github-actions-context.png)
+
+{{% callout question %}}
+ Why is the ```steps``` context empty?
+{{% /callout %}}
+
+{{% callout note %}}
+ 
+In GitHub Actions, the steps context is only populated with information about the steps that have already run in the current job and have an ```id``` specified. We will apply the necessary property ```id``` so we can pass data between steps. 
+
+```yaml
+name: Context Information
+on:
+  push:
+    branches-ignore: main
+jobs:
+  show-context:
+    name: Show Context
+    timeout-minutes: 5
+    runs-on: ubuntu-latest-internal
+    steps:
+      - name: Provide Some Step Outputs
+        id: step-outputs
+        run: echo "TRUE_STATEMENT=Possums are terrible." >> $GITHUB_OUTPUT
+      - name: Dump Step Information
+        env:
+          CONTEXT_ITEM: ${{ toJson(steps) }}
+        run: echo "${CONTEXT_ITEM}"
+```
+The result will be that the steps context now has the data from the previous step.
+![github-actions-steps-context-output1](/images/uploads/github-actions-steps-context-output1.png)
+It's possible to pass multiple values in a single step. This will teach you how to accomplish that and then access both values.
+
+```yaml
+name: Context Information
+on:
+  push:
+    branches-ignore: main
+jobs:
+  show-context:
+    name: Show Context
+    timeout-minutes: 5
+    runs-on: ubuntu-latest-internal
+    steps:
+      - name: Provide Some Step Outputs
+        id: step-outputs
+        run: |
+          echo "TRUE_STATEMENT=Possums are terrible." >> $GITHUB_OUTPUT
+          echo "FALSE_STATEMENT=Possums are great." >> $GITHUB_OUTPUT
+      - name: Dump Step Information
+        env:
+          CONTEXT_ITEM: ${{ toJson(steps) }}
+        run: echo "${CONTEXT_ITEM}"
+```
+
+The result will be that the steps context now has even more data than the previous step.
+ ![github-actions-steps-context-output2](/images/uploads/github-actions-steps-context-output2.png)
+You can see it's just a ```JSON``` object and step ```id``` is the **key**, that is being put in the JSON object. It has to have something or else every single step that was logged here would look exactly the same and would be ambugious. 
+That is why GitHub Actions **enforce** that if you don't include an  ```id```, it would not log anything out.
+
+{{% /callout %}}
 
 ## Further Read
+
+That's all for now.  Consider *Intro to GitHub Actions* complete, but there's a long ways to go and lots more to learn. 
 
 [Understanding GitHub Actions](https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions)
