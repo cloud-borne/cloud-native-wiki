@@ -20,11 +20,9 @@ GitHub Actions Cheat Sheet
 GitHub Actions is a continuous integration and continuous delivery (```CI/CD```) platform that enables automated build, test and deployment pipelines. GitHub Actions also enables the execution of non-CI/CD type automation on a repository, like adding a label when someone creates a new issue on the repository.
 GitHub Actions supports Linux, Windows and macOS operating systems
 
-## Terminology
-
 ![github-actions-overview](/images/uploads/github-actions.png)
 
-### Event(s)
+## Event(s)
 
 A specific activity in a repository that triggers a workflow execution
   
@@ -40,7 +38,7 @@ Examples:
 To skip the CI workflow for a specific commit, you can include ```[skip ci]``` or ```[ci skip]``` in the commit message. GitHub recognizes this phrase and will not trigger the CI workflow for that commit.
 {{% /callout %}}
 
-### Workflow(s) 
+## Workflow(s) 
   
 {{< figure src="images/uploads/github-action-syntax.png" class="alignright">}}
 
@@ -61,7 +59,7 @@ A configurable automated process:
   - A workflow to deploy your application every time a release is created
   - A workflow to add a label every time someone opens a new issue
 
-### Runner(s)
+## Runner(s)
 
 - A server that runs your workflows when they are triggered
 - A given runner can execute a single job at a time
@@ -70,7 +68,7 @@ A configurable automated process:
 - Runners come in different configurations to meet specific needs
 - Users can leverage GitHub hosted or self-hosted runners
 
-### Job(s) 
+## Job(s) 
 
 A set of steps in a workflow that execute on the same runner
 - Each job runs within a virtual machine (runner) OR container
@@ -128,7 +126,7 @@ You can set some custom Markdown for each job summary to display and group uniqu
   ```
 {{% /callout %}}
   
-### Step(s) 
+## Step(s) 
   
 Granular execution of a job
 - Steps can be a shell command (```run```) or an action (```uses```)
@@ -148,7 +146,7 @@ Granular execution of a job
   ![github-actions-steps](/images/uploads/github-action-steps.png)
 
 
-### Action(s) 
+## Action(s) 
   
 A **reusable** step is an ```Action```
 
@@ -236,9 +234,9 @@ A **reusable** step is an ```Action```
   - Set up the correct toolchain for a build environment
   - Establish authentication to a cloud provider
 
-### Context
+## Context
 
-Every workflow execution has access to different ```Context``` information during runtime. Contexts are a way to access information about workflow runs, variables, runner environments, jobs, and steps. Each ```Context``` is an object that contains properties, which can be strings or other objects.
+Every workflow execution has access to different ```Context``` information during runtime. Contexts are a way to access information about workflow runs, variables, runner environments, jobs, and steps. Each ```context``` is an object that contains properties, which can be strings or other objects.
 
 You can access contexts using the expression syntax: ``` ${{ <context> }} ```. 
 We have already seen some usage like this where we output the branch name from the ```github``` context object
@@ -290,8 +288,9 @@ We can look at all the different ```context``` objects available in a workflow a
 
 {{% callout note %}}
  
-In GitHub Actions, the steps context is only populated with information about the steps that have already run in the current job and have an ```id``` specified. We will apply the necessary property ```id``` so we can pass data between steps. 
+In GitHub Actions, the steps context is only populated with information about the steps that have already run in the current job and have an ```id``` specified. 
 
+Let's apply the necessary property ```id``` so we can pass data between steps: 
 ```yaml
 name: Context Information
 on:
@@ -313,36 +312,343 @@ jobs:
 ```
 The result will be that the steps context now has the data from the previous step.
 ![github-actions-steps-context-output1](/images/uploads/github-actions-steps-context-output1.png)
-It's possible to pass multiple values in a single step. This will teach you how to accomplish that and then access both values.
 
-```yaml
-name: Context Information
+You can see it's just a ```JSON``` object and step ```id``` is the **key**, that is being put in the JSON object. It has to have something or else every single step that was logged here would look exactly the same and it would be ambugious. 
+That is why GitHub Actions **enforces** that if you don't include an  ```id```, it would not log anything at all.
+
+{{% /callout %}}
+
+The ```context``` information in conjunction with conditional expressions can control the execution of various steps based on branch names, input parameters, and the success or failure of previous steps. It allows for sophisticated automation workflows that can react appropriately to different scenarios during CI/CD processes.
+
+![github-actions-context-expressions](/images/uploads/github-actions-context-expressions.png)
+
+## Global Environment Variables
+
+Workflows allows us to define environment variables at the **global** level as well. These variables are then accessible to all jobs.
+
+```yml
+name: Environment Variables
 on:
   push:
-    branches-ignore: main
+    branches: feature/global-env
+env:
+  GLOBAL_VAR: test
 jobs:
-  show-context:
-    name: Show Context
+  first-job:
+    name: A Job
     timeout-minutes: 5
     runs-on: ubuntu-latest-internal
     steps:
-      - name: Provide Some Step Outputs
-        id: step-outputs
-        run: |
-          echo "TRUE_STATEMENT=Possums are terrible." >> $GITHUB_OUTPUT
-          echo "FALSE_STATEMENT=Possums are great." >> $GITHUB_OUTPUT
-      - name: Dump Step Information
+      - name: Output Global Variable
+        run: echo "${GLOBAL_VAR}"
+  second-job:
+    name: Another Job
+    timeout-minutes: 5
+    runs-on: ubuntu-latest-internal
+    steps:
+      - name: Output Global Variable
+        run: echo "${GLOBAL_VAR}"
+```
+The result will be a variable available across all jobs.
+
+{{% callout note %}}
+If the variable is edited in say *first job*, the *second job* will have the **changed** value.
+{{% /callout %}}
+
+## Workflow Defaults
+
+Default options exist for jobs and steps within a workflow. Currently you can define the ```shell``` and ```working-directory```
+
+```yml
+name: Using Defaults
+on:
+  push:
+    branches: feature/defaults
+jobs:
+  first-job:
+    name: First Job
+    timeout-minutes: 5
+    runs-on: ubuntu-latest-internal
+    steps:
+      - name: Create Source Directory
+        run: mkdir src
+        shell: bash
+      - name: Use Python
+        run: import os; print("I'm running python! Hissssss! " + os.getcwd());
+        shell: python
+        working-directory: src
+      - name: Use Bash
+        run: echo "I'm running hum-drum bash in $(pwd). Booo."
+        shell: bash
+        working-directory: src
+      - name: Use Bash Also
+        run: echo "I'm running bash also, but elsewhere in $(pwd). Booo."
+        shell: bash
+  second-job:
+    name: Second Job
+    timeout-minutes: 5
+    runs-on: ubuntu-latest-internal
+    steps:
+      - name: Create Source Directory
+        run: mkdir src
+        shell: bash
+      - name: Use Bash
+        run: echo "I'm running bash in $(pwd). So sad."
+        shell: bash
+        working-directory: src
+```
+The result will be an execution which utilizes ```bash``` for most of the steps within the jobs.
+
+We could have ```defaults``` at the job level:
+
+```yml
+name: Using Defaults
+on:
+  push:
+    branches: feature/defaults
+jobs:
+  first-job:
+    name: First Job
+    timeout-minutes: 5
+    runs-on: ubuntu-latest-internal
+    defaults:
+      run:
+        shell: bash
+        working-directory: src
+    steps:
+      - name: Create Source Directory
+        run: mkdir src
+        working-directory: .
+      - name: Use Python
+        run: import os; print("I'm running python! Hissssss! " + os.getcwd())
+        shell: python
+      - name: Use Bash
+        run: echo "I'm running hum-drum bash in $(pwd). Booo."
+      - name: Use Bash Also
+        run: echo "I'm running bash also, but elsewhere in $(pwd). Booo."
+        working-directory: ..
+  second-job:
+    name: Second Job
+    timeout-minutes: 5
+    runs-on: ubuntu-latest-internal
+    steps:
+      - name: Create Source Directory
+        run: mkdir src
+        shell: bash
+        working-directory: .
+      - name: Use Bash
+        run: echo "I'm running bash in $(pwd). So sad."
+        shell: bash
+        working-directory: src
+```
+The result will be less code in your workflow, while the execution still performed the same. It used ```bash``` as the default shell and provided a default working directory of ```src```.
+
+We could also utilize ```defaults``` at the workflow level:
+
+```yml
+name: Job Default
+on:
+  push:
+    branches: feature/defaults
+defaults:
+  run:
+    shell: bash
+    working-directory: src
+jobs:
+  first-job:
+    name: First Job
+    timeout-minutes: 5
+    runs-on: ubuntu-latest-internal
+    steps:
+      - name: Create Source Directory
+        run: mkdir src
+        working-directory: .
+      - name: Use Python
+        run: import os; print("I'm running python! Hissssss! " + os.getcwd())
+        shell: python
+      - name: Use Bash
+        run: echo "I'm running hum-drum bash in $(pwd). Booo."
+      - name: Use Bash Also
+        run: echo "I'm running bash also, but elsewhere in $(pwd). Booo."
+        working-directory: ..
+  second-job:
+    name: Second Job
+    timeout-minutes: 5
+    runs-on: ubuntu-latest-internal
+    steps:
+      - name: Create Source Directory
+        run: mkdir src
+        working-directory: .
+      - name: Use Bash
+        run: echo "I'm running bash in $(pwd). So sad."
+```
+The result will be even less code, making ```bash``` the default shell and ```src``` the working-directory for all job steps.
+
+## Dependent Jobs
+
+Jobs by default run in **parallel**/**asynchronously**. If you need **synchronous** execution, you specify the dependencies via the ```needs``` keyword. The job will only execute after all jobs listed in the ```needs``` array have completed successfully. If any of the jobs in the needs list fail, the dependent job will not run. 
+
+Additionally, jobs chained in series could also share outputs. This is done through the outputs field in a job and accessed via the ```needs.<job_id>.outputs.<output_name>``` syntax.
+
+```yml
+name: Dependent Jobs
+on:
+  push:
+    branches: feature/dependent
+jobs:
+  first-job:
+    name: First Job (parallel)
+    timeout-minutes: 5
+    runs-on: ubuntu-latest-internal
+    outputs:
+      random-uuid: ${{ steps.uuid-gen.outputs.UUID }}
+    steps:
+      - name: Random UUID Gen
+        id: uuid-gen
+        run: echo "UUID=$(uuidgen)" >> "$GITHUB_OUTPUT"
+      - name: Dump Job Information
         env:
-          CONTEXT_ITEM: ${{ toJson(steps) }}
+          CONTEXT_ITEM: ${{ toJson(job) }}
+        run: echo "${CONTEXT_ITEM}"
+  second-job:
+    name: Second Job (series)
+    timeout-minutes: 5
+    runs-on: ubuntu-latest-internal
+    needs: first-job
+    steps:
+      - name: Dump Job Information
+        env:
+          CONTEXT_ITEM: ${{ toJson(job) }}
+        run: echo "${CONTEXT_ITEM}"
+      - name: Output UUID Information
+        run: echo " The random UUID from the job is '${{ needs.first-job.outputs.random-uuid }}'." >> $GITHUB_STEP_SUMMARY
+  third-job:
+    name: Third Job (parallel)
+    timeout-minutes: 5
+    runs-on: ubuntu-latest-internal
+    steps:
+      - name: Dump Job Information
+        env:
+          CONTEXT_ITEM: ${{ toJson(job) }}
         run: echo "${CONTEXT_ITEM}"
 ```
 
-The result will be that the steps context now has even more data than the previous step.
- ![github-actions-steps-context-output2](/images/uploads/github-actions-steps-context-output2.png)
-You can see it's just a ```JSON``` object and step ```id``` is the **key**, that is being put in the JSON object. It has to have something or else every single step that was logged here would look exactly the same and would be ambugious. 
-That is why GitHub Actions **enforce** that if you don't include an  ```id```, it would not log anything out.
+## Pull Request Triggers
 
+GitHub Actions provides two distinct events for handling pull requests: ```pull_request``` and ```pull_request_target```. Both can trigger workflows in response to pull request activity, but they differ significantly in their security contexts, usage scenarios, and access to repository secrets.
+
+1. ```pull_request``` Event
+
+- Behavior:
+
+  - Triggered by events related to pull requests, such as opening a pull request, editing it, or changing its status (e.g., merging or closing).
+  - Runs in the context of the **forked** repository. This means that workflows do not have access to the secrets defined in the base repository (the repository where the pull request is being merged).
+  - More **secure** by design, preventing potentially malicious code from accessing sensitive data in the base repository.
+
+- Use Case:
+
+  You have a **public** repository where contributors can submit pull requests. You want to run tests to validate the *code quality* and ensure it meets certain *standards* before it can be merged. Here’s a sample workflow.yml file that uses the ```pull_request``` event:
+
+  ```yml
+  name: PR Guidelines and CI
+
+  on:
+    pull_request:
+      types: [opened, synchronize, reopened]
+
+  permissions:
+    pull-requests: write
+
+  jobs:
+    post-guidelines-comment:
+      name: Post guidelines comment
+      timeout-minutes: 5
+      runs-on: ubuntu-latest
+      steps:
+        - run: gh pr comment $PR_URL --body "$COMMENT_BODY"
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            PR_URL: ${{ github.event.pull_request.html_url }}
+            COMMENT_BODY: |
+              Thank you for your contribution! Please ensure you have followed our community guidelines and the pull request checklist:
+
+              **Community Guidelines:**
+              - Be respectful and considerate to others.
+              - Follow the project's code of conduct.
+
+              **Pull Request Checklist:**
+              - [ ] I have read and understood the community guidelines.
+              - [ ] My code follows the existing style of the project.
+              - [ ] I have included tests for new features and bug fixes.
+              - [ ] I have updated the documentation accordingly.
+              - [ ] I have tested my changes locally.
+
+              If you have any questions, feel free to reach out!
+
+    test:
+      name: CI
+      runs-on: ubuntu-latest
+      needs: post-guidelines-comment  # Ensure this job runs after posting the comment
+      steps:
+        - name: Check out code
+          uses: actions/checkout@v2
+
+        - name: Install dependencies
+          run: npm install
+
+        - name: Run tests
+          run: npm test
+  ```
+
+{{% callout note %}}
+- The step ```post-guidelines-comment``` uses GitHub CLI (```gh```) to add a comment when a pull request is *opened*. To allow GitHub CLI to post a comment, we set the GITHUB_TOKEN environment variable to the value of the GITHUB_TOKEN secret, which is an installation access token, created when the workflow runs. For more information, see [Automatic token authentication](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#permissions-for-the-github_token). We set the ```PR_URL``` environment variable to the URL of the newly created pull request, and we use this in the ```gh``` command.
+- By default, workflows have a **restricted** set of permissions. Explicitly setting ```pull-requests: write``` allows the workflow to perform actions that modify pull requests, such as posting comments or updating labels.
 {{% /callout %}}
+
+2. ```pull_request_target``` Event
+
+- Behavior:
+
+  - Also triggered by pull request related events, similar to pull_request. But runs in the context of the **base** repository. This allows workflows to have access repository **secrets** defined in the base repository.
+
+  - Because it has access to sensitive information, it is crucial to be careful with what code is executed in this context, as it could be exploited if the pull request comes from an untrusted fork.
+
+- Use Case:
+
+Imagine you have a repository that needs to run a deployment script or access sensitive tokens (e.g., AWS credentials) when a pull request is made. You can use the ```pull_request_target``` event to run such workflows while ensuring only **trusted** code runs. Here’s how you might set it up:
+
+  ```yml
+  name: Deploy
+
+  on:
+    pull_request_target:
+      types: [opened, synchronize]
+
+  jobs:
+    deploy:
+      runs-on: ubuntu-latest
+      if: ${{ github.event.pull_request.head.repo.fork == false }}  # Run only for non-fork PRs
+      steps:
+        - name: Check out code
+          uses: actions/checkout@v2
+
+        - name: Run deployment script
+          env:
+            DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          run: |
+            # Run deployment commands here
+            ./deploy.sh
+  ```
+
+{{% callout note %}}
+- You add a conditional check:
+ ```
+ (if: ${{ github.event.pull_request.head.repo.fork == false }})
+ ``` 
+ to the deploy job. This will prevent the deployment job from executing if the pull request comes from a **forked** repository, thereby mitigating potential security risks.
+{{% /callout %}}
+
+## Workflow Dispatch Triggers
 
 ## Further Read
 
