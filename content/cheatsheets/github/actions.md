@@ -258,7 +258,7 @@ We can look at all the different ```context``` objects available in a workflow a
     show-context:
       name: Show Context
       timeout-minutes: 5
-      runs-on: ubuntu-latest-internal
+      runs-on: ubuntu-latest
       steps:
         - name: Dump Event Information
           env:
@@ -300,7 +300,7 @@ jobs:
   show-context:
     name: Show Context
     timeout-minutes: 5
-    runs-on: ubuntu-latest-internal
+    runs-on: ubuntu-latest
     steps:
       - name: Provide Some Step Outputs
         id: step-outputs
@@ -337,14 +337,14 @@ jobs:
   first-job:
     name: A Job
     timeout-minutes: 5
-    runs-on: ubuntu-latest-internal
+    runs-on: ubuntu-latest
     steps:
       - name: Output Global Variable
         run: echo "${GLOBAL_VAR}"
   second-job:
     name: Another Job
     timeout-minutes: 5
-    runs-on: ubuntu-latest-internal
+    runs-on: ubuntu-latest
     steps:
       - name: Output Global Variable
         run: echo "${GLOBAL_VAR}"
@@ -368,7 +368,7 @@ jobs:
   first-job:
     name: First Job
     timeout-minutes: 5
-    runs-on: ubuntu-latest-internal
+    runs-on: ubuntu-latest
     steps:
       - name: Create Source Directory
         run: mkdir src
@@ -387,7 +387,7 @@ jobs:
   second-job:
     name: Second Job
     timeout-minutes: 5
-    runs-on: ubuntu-latest-internal
+    runs-on: ubuntu-latest
     steps:
       - name: Create Source Directory
         run: mkdir src
@@ -410,7 +410,7 @@ jobs:
   first-job:
     name: First Job
     timeout-minutes: 5
-    runs-on: ubuntu-latest-internal
+    runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
@@ -430,7 +430,7 @@ jobs:
   second-job:
     name: Second Job
     timeout-minutes: 5
-    runs-on: ubuntu-latest-internal
+    runs-on: ubuntu-latest
     steps:
       - name: Create Source Directory
         run: mkdir src
@@ -458,7 +458,7 @@ jobs:
   first-job:
     name: First Job
     timeout-minutes: 5
-    runs-on: ubuntu-latest-internal
+    runs-on: ubuntu-latest
     steps:
       - name: Create Source Directory
         run: mkdir src
@@ -474,7 +474,7 @@ jobs:
   second-job:
     name: Second Job
     timeout-minutes: 5
-    runs-on: ubuntu-latest-internal
+    runs-on: ubuntu-latest
     steps:
       - name: Create Source Directory
         run: mkdir src
@@ -499,7 +499,7 @@ jobs:
   first-job:
     name: First Job (parallel)
     timeout-minutes: 5
-    runs-on: ubuntu-latest-internal
+    runs-on: ubuntu-latest
     outputs:
       random-uuid: ${{ steps.uuid-gen.outputs.UUID }}
     steps:
@@ -513,7 +513,7 @@ jobs:
   second-job:
     name: Second Job (series)
     timeout-minutes: 5
-    runs-on: ubuntu-latest-internal
+    runs-on: ubuntu-latest
     needs: first-job
     steps:
       - name: Dump Job Information
@@ -525,7 +525,7 @@ jobs:
   third-job:
     name: Third Job (parallel)
     timeout-minutes: 5
-    runs-on: ubuntu-latest-internal
+    runs-on: ubuntu-latest
     steps:
       - name: Dump Job Information
         env:
@@ -615,7 +615,7 @@ GitHub Actions provides two distinct events for handling pull requests: ```pull_
 
 - Use Case:
 
-Imagine you have a repository that needs to run a deployment script or access sensitive tokens (e.g., AWS credentials) when a pull request is made. You can use the ```pull_request_target``` event to run such workflows while ensuring only **trusted** code runs. Here’s how you might set it up:
+  Imagine you have a repository that needs to run a deployment script or access sensitive tokens (e.g., AWS credentials) when a pull request is made. You can use the ```pull_request_target``` event to run such workflows while ensuring only **trusted** code runs. Here’s how you might set it up:
 
   ```yml
   name: Deploy
@@ -641,7 +641,7 @@ Imagine you have a repository that needs to run a deployment script or access se
   ```
 
 {{% callout note %}}
-- You add a conditional check:
+You add a conditional check:
  ```
  (if: ${{ github.event.pull_request.head.repo.fork == false }})
  ``` 
@@ -649,6 +649,189 @@ Imagine you have a repository that needs to run a deployment script or access se
 {{% /callout %}}
 
 ## Workflow Dispatch Triggers
+
+Workflow Dispatch allows the user to **manually** trigger a GitHub Actions workflow. Let's see an example that allows you to manually trigger a ```release``` creation using a specific ```tag```.
+
+1. From the default branch of your repository, create a new branch of code called ```feature/dispatch-workflow```.
+2. Create a new file named ```.github/workflows/create-release.yaml``` (make sure you are editing the file in feature/dispatch-workflow).
+3. Copy the contents below to the newly created file:
+
+    ```yml
+    name: Create Release
+
+    on:
+      workflow_dispatch:
+        inputs:
+          tag:
+            type: string
+            required: true
+            description: Tag for the release.
+            default: "0.1.0"
+
+    permissions:
+        contents: write
+
+    jobs:
+      create-release:
+        timeout-minutes: 5
+        runs-on: ubuntu-latest
+        steps:
+          - run: gh release create $TAG --repo https://github.com/$GITHUB_REPOSITORY --target $COMMITISH --generate-notes
+            env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              TAG: ${{ inputs.tag }}
+              COMMITISH: ${{ github.ref }}
+    ```
+4. Commit the file.
+
+{{% callout note %}}
+The step you've added uses GitHub CLI (gh) to create a **release** using the tag name you provided in the input. This will create a git tag using the Target branch or full commit ```SHA``` (default branch if none is provided). If a matching git tag does not yet exist, one will automatically get created from the latest state in the target ref.
+
+To allow GitHub CLI to execute, we set the ```GITHUB_TOKEN``` environment variable to the value of the **GITHUB_TOKEN** secret, which is an installation access token, created when the workflow runs. For more information, see [Automatic token authentication](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication).
+
+We set the ```TAG```, ```COMMITISH``` environment variables to prevent script injection. See [Security for GitHub Actions](https://docs.github.com/en/enterprise-cloud@latest/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections) to understand why we use env variables instead of referencing the variable directly in the run step.
+{{% /callout %}}
+
+5. Create a Pull Request, set *base*: ```main``` and *compare*: ```feature/dispatch-workflow```
+
+6. Merge your workflow file.
+
+7. Run the workflow to create a release:
+    - Select ```Create Release``` workflow from the left sidebar.
+    - Click on the ```Run workflow``` button.
+    - Leave the branch as ```default``` and give a ```tag``` name.
+    - Wait for the workflow to run and check if a release has been created.
+
+## Matrices
+
+Defining a ```matrix``` strategy in a workflow allow you to essentially define a *template* job and scale out job execution based on variables you define. This is incredibly useful for repeating the same job but with slightly different values, like if you needed to test software against different *versions* of a language, against multiple ```os``` versions, multiple browsers, different database engines and so on.
+
+Let's say we have a NodeJS application and we want to run our tests against the following:
+- Node.js versions: ```14```, ```16```, ```18```
+- Operating systems: ```ubuntu-latest``` and ```windows-latest```
+
+We define a ```strategy``` section that includes a ```matrix``` with two axes: node-version and os.
+This matrix indicates that we want to run the job for each combination of the specified Node.js versions and operating systems.
+
+```yml
+name: Node.js CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        node-version: [14, 16, 18]
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+```
+When this workflow runs, GitHub Actions will create a total of 6 job executions:
+
+- Node.js 14 on Ubuntu
+- Node.js 14 on Windows
+- Node.js 16 on Ubuntu
+- Node.js 16 on Windows
+- Node.js 18 on Ubuntu
+- Node.js 18 on Windows
+
+## Caching
+
+GitHub Actions provides a ```caching``` mechanism that helps speed up workflow runs by storing dependencies and other files that are expensive to rebuild or download. By caching certain files, you can significantly reduce the execution time of your CI/CD workflows, particularly in scenarios where you install dependencies, compile code, or generate build artifacts.
+
+###### How Caching Works
+
+- **Cache Key**: Each cache is identified by a ```key```. You can define the key using specific identifiers, such as the dependency version, operating system, or branch name, which allows you to manage cache versions effectively.
+
+- **Save Cache**: In a workflow, you can specify which files or directories to cache. When the workflow runs, it saves the specified files to the cache under the defined key.
+
+- **Restore Cache**: When a workflow runs, it first checks for the cache that matches the key. If a matching cache is found, it restores those files before executing any subsequent steps, allowing you to skip expensive operations.
+
+- **Cache Hits and Misses**: If the cache key matches a previously saved cache, it’s called a cache **hit**; otherwise, it’s a cache **miss**. In the case of a cache miss, the files specified for caching are rebuilt or redownloaded, and a new cache is created.
+
+Here's an example of using caching in a GitHub Actions workflow for a Node.js application. In this workflow, we will cache the ```node_modules``` directory to speed up the installation of dependencies.
+
+```yml
+name: Node.js CI
+on:
+  pull_request:
+    branches: [main]
+permissions: 
+  contents: read
+  id-token: write
+jobs:
+  first-job:
+    timeout-minutes: 5
+    name: Build and test!
+    runs-on:  ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Setup node version 20
+        uses: actions/setup-node@v2
+        with:
+          node-version: 20
+
+      - name: Cache node modules
+        id: cache-npm
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-node-modules
+        with:
+          # npm cache files are stored in `~/.npm` on Linux/macOS
+          path: ~/.npm
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
+      - if: ${{ steps.cache-npm.outputs.cache-hit != 'true' }}
+        name: List the state of node modules
+        continue-on-error: true
+        run: npm list
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Test
+        run: npm test
+```
+
+The first job *Cache node modules* attempts to load cached npm files by generating a UID ```key``` and checking it against the key in our cached objects. In this case, they key is the runner **os**, **cache name**, and a SHA-256 hash of the **package-lock.json** file.
+
+- When key exactly matches an existing cache, it's called a cache **hit**, and the action restores the cached files to the path directory.
+- When key doesn't match an existing cache, it's called a cache **miss**, and a new cache is automatically created if the job completes successfully.
+
+**Limitations**
+While caching can greatly enhance performance, there are some limitations:
+
+- **Cache Size**: The maximum size for a single cache is **10 GB**.
+- **Branch Specificity**: Caches are **branch-specific**, meaning they are not shared across branches by default.
+- **7-Day Retention**: Caches have a 7-day **rolling retention** period; if not accessed in this timeframe, they may be deleted.
+- **Restore Performance**: Restoring caches can sometimes be slower than expected if the cache is large or not found.
+- **Sensitive Data**: Avoid caching **sensitive** information to prevent exposure.
+
+## Composite Actions
+
+## Reusable Workflows
 
 ## Further Read
 
