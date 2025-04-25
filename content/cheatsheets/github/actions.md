@@ -831,7 +831,141 @@ While caching can greatly enhance performance, there are some limitations:
 
 ## Composite Actions
 
+* ```Composite Actions``` allow you to collect a series of workflow job ```steps``` into a single action which you can then run as a single job step in multiple workflows.
+* Composite actions are meant to be **generic** and **isolated** but **reused** commonly throughout your organization. They have some limitations:
+  * Cannot use ```secrets``` unless they are passed in
+  * Cannot use multiple jobs
+* Some good candidates for composite actions are compliance checks, linters, environment setup, or preflight checks that are common to many workflows.
+* To give an example let's set up a Repository Structure:
+  ```
+  setup-node-environment-action/
+  ├── action.yml
+  └── README.md
+  ```
+* The ```action.yml``` file defines the action and its inputs/outputs:
+
+  ```yml
+  name: 'Environment Setup'
+  description: 'Prep our environment'
+  inputs:
+    node-version:  # id of input
+      description: 'What version of node to install'
+      required: true
+      default: '20'
+    cache:
+      description: 'Whether to cache node modules (true/false).'
+      required: false
+      default: 'true'
+  runs:
+    using: "composite"
+    steps:
+        - name: Check out repository code
+          uses: actions/checkout@v4
+
+        - name: Setup node version $INPUT_NODE_VERSION
+          uses: actions/setup-node@v2
+          with:
+            node-version: ${{ inputs.node-version }}
+            cache: ${{ inputs.cache }}
+  ```
+* Push to the remote repository on GitHub.
+* Now that your standalone action is published, you can use it in any other repository by referencing it in your workflows:
+  ```yml
+    name: CI Workflow
+
+    on:
+      push:
+        branches:
+          - main
+      pull_request:
+
+    jobs:
+      build:
+        runs-on: ubuntu-latest
+
+        steps:
+          - name: Setup Node.js Environment
+            uses: <your-username>/setup-node-environment-action@main  # Reference your action
+            with:
+              node-version: '16'  # Specify the desired Node.js version.
+              install-dependencies: 'true'
+              cache: 'true'
+
+          - name: Run Tests
+            run: npm test  # Adjust according to your project's test script 
+  ```
+  
 ## Reusable Workflows
+
+Reusable workflows allow you to reuse an entire workflow, including all of its jobs and steps. This is particularly useful when you have a complete CI/CD process that you want to use across multiple repositories. Reusable workflows can be centrally maintained, in one location, but used in many repositories across your organization.
+
+* Create a new repository for your reusable workflow. You can name it something like ```nodejs-setup-workflow```.
+  ```
+  nodejs-setup-workflow/
+  ├── .github/
+  │   └── workflows/
+  │       └── setup-node.yml
+  └── README.md
+
+  ```
+* In the ```setup-node.yml``` file, define your reusable workflow for setting up a Node.js environment:
+  ```yml
+  name: Setup Node.js Environment
+
+  on:
+    workflow_call:
+      inputs:
+        node-version:
+          required: true
+          type: string
+        install-dependencies:
+          required: false
+          type: boolean
+          default: true
+        cache:
+          required: false
+          type: boolean
+          default: true
+
+  jobs:
+    setup:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v2
+
+        - name: Set up Node.js
+          uses: actions/setup-node@v2
+          with:
+            node-version: ${{ inputs.node-version }}
+            cache: ${{ inputs.cache }}
+
+        - name: Install Dependencies
+          if: ${{ inputs.install-dependencies }}
+          run: npm install
+
+        - name: Run Build
+          run: npm run build  # Optional: Adjust according to your project's build script
+  ```
+* To invoke this reusable workflow in another GitHub repository, you can create a new workflow file (e.g., ```.github/workflows/ci.yml```) that references the reusable workflow:
+  ```yml
+  name: CI Workflow
+
+  on:
+    push:
+      branches:
+        - main
+    pull_request:
+
+  jobs:
+    build:
+      uses: <your-username>/nodejs-setup-workflow/.github/workflows/setup-node.yml@main  # Reference your reusable workflow
+      with:
+        node-version: '16'  # Specify the desired Node.js version.
+        install-dependencies: true
+        cache: true
+  ```
+
 
 ## Further Read
 

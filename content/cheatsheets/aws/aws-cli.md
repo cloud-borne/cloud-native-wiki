@@ -543,6 +543,9 @@ aws cloudformation describe-stacks \
     --stack-name CodeDeployDemoStack \
     --query "Stacks[0].StackStatus" \
     --output text
+
+# The AWS CLI has a CloudFormation validation tool
+aws cloudformation validate-template --template-body file:///path/to/file.yaml
 ```
 
 ### ECS
